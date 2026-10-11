@@ -1,10 +1,113 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Spot Bonus Calculator";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<h1 class="mb-4">Spot Bonus Calculator</h1>
+
+<form method="post" enctype="multipart/form-data">
+    <h5>Spot bonus periods</h5>
+    <div id="periods">
+        @for (var i = 0; i < Model.Periods.Count; i++)
+        {
+            <div class="period-row d-flex gap-2 mb-2">
+                <input asp-for="Periods[i].Start" type="datetime-local" class="form-control" required/>
+                <input asp-for="Periods[i].End" type="datetime-local" class="form-control" required/>
+                <input asp-for="Periods[i].AmountPerBlock" type="number" step="0.01" class="form-control"
+                       style="max-width:120px"/>
+                <button type="button" class="btn btn-outline-danger" onclick="removePeriod(this)">Remove</button>
+            </div>
+        }
+    </div>
+    <button type="button" class="btn btn-outline-secondary mb-4" onclick="addPeriod()">Add period</button>
+
+    <h5>Timecards</h5>
+    <input asp-for="Timecards" type="file" accept=".pdf" multiple class="form-control mb-3" required/>
+
+    <button type="submit" class="btn btn-primary">Calculate</button>
+</form>
+
+@foreach (var emp in Model.Results)
+{
+    <h4 class="mt-5">@emp.Name</h4>
+
+    if (emp.Error != null)
+    {
+        <div class="alert alert-warning">@emp.Error</div>
+    }
+    else if (emp.BonusDays.Count == 0)
+    {
+        <p class="text-muted">No spot bonus shifts in the selected periods.</p>
+    }
+    else
+    {
+        <table class="table table-sm">
+            <thead>
+            <tr>
+                <th>Shift start</th>
+                <th>Day</th>
+                <th>Paid hrs</th>
+                <th>OT hrs</th>
+                <th>Blocks</th>
+                <th>Rate</th>
+                <th>Bonus</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var d in emp.BonusDays)
+            {
+                <tr>
+                    <td>@d.ShiftStart.ToString("ddd M/d h:mm tt")</td>
+                    <td>@(d.Scheduled ? "Scheduled" : "Day off")</td>
+                    <td>@d.PaidHours</td>
+                    <td>@d.OvertimeHours</td>
+                    <td>@d.Blocks</td>
+                    <td>@d.Rate.ToString("C")</td>
+                    <td>@d.Bonus.ToString("C")</td>
+                    <td>
+                        @if (d.NeedsReview)
+                        {
+                            <span class="badge bg-warning text-dark">@d.MinutesShort min short</span>
+                        }
+                    </td>
+                </tr>
+            }
+            </tbody>
+            <tfoot>
+            <tr class="fw-bold">
+                <td colspan="4">Total</td>
+                <td>@emp.TotalBlocks</td>
+                <td></td>
+                <td>@emp.TotalBonus.ToString("C")</td>
+                <td></td>
+            </tr>
+            </tfoot>
+        </table>
+    }
+}
+
+@section Scripts {
+    <script>
+        function addPeriod() {
+            const i = document.querySelectorAll('#periods .period-row').length;
+            const today = new Date().toLocaleDateString('en-CA') + 'T00:00';
+            document.getElementById('periods').insertAdjacentHTML('beforeend', `
+            <div class="period-row d-flex gap-2 mb-2">
+                <input type="datetime-local" name="Periods[${i}].Start" value="${today}" class="form-control" required />
+                <input type="datetime-local" name="Periods[${i}].End" value="${today}" class="form-control" required />
+                <input type="number" step="0.01" name="Periods[${i}].AmountPerBlock" value="50" class="form-control" style="max-width:120px" />
+                <button type="button" class="btn btn-outline-danger" onclick="removePeriod(this)">Remove</button>
+            </div>`);
+        }
+
+        function removePeriod(btn) {
+            btn.closest('.period-row').remove();
+            // the form needs Periods[0], [1], [2]... with no gaps
+            document.querySelectorAll('#periods .period-row').forEach((row, i) =>
+                row.querySelectorAll('input').forEach(input =>
+                    input.name = input.name.replace(/Periods\[\d+\]/, `Periods[${i}]`)));
+        }
+    </script>
+}
